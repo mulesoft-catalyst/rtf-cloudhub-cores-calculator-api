@@ -1,0 +1,8 @@
+Tenant Type,Name,Business Group,RTF CPU Reserved,RTF CPU Limit,CloudHub vCores
+Env,EE-Production,Product,0.2,7.9,0
+Env,Tr-Production,Commercial,4,6,0
+BG,Product,,0.2,7.9,0
+BG,Commercial,,4,6,0
+BG,Research and Development,,0.2,0.2,0
+BG,EPI-Integration and Analytics Platform,,0.2,0.2,0
+Global,MuleSoft,,7.05,19.68,14.8

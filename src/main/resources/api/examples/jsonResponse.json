@@ -1,0 +1,96 @@
+{
+    "Global Total RTF CPU Reserved": 7.05,
+    "Global Total RTF CPU Limit": 19.68,
+    "Global Total CloudHub vCores": 14.8,
+    "Details": {
+        "Product": {
+            "BG RTF Total CPU Reserved": 0.2,
+            "BG RTF Total CPU Limit": 7.9,
+            "BG CH Total vCores": 0,
+            "Details": [
+                {
+                    "Business Group": "Product",
+                    "Environment": "Production",
+                    "RTF Total CPU Reserved": 0.2,
+                    "RTF Total CPU Limit": 7.9,
+                    "CH Total vCores": 0,
+                    "RTF Application Details": [
+                        {
+                            "applicationName": "app1",
+                            "cpuReserved": 0.2,
+                            "cpuLimit": 7.9
+                        },
+                        {
+                            "applicationName": "app-sample",
+                            "cpuReserved": 0,
+                            "cpuLimit": 0
+                        }
+                    ]
+                }
+            ]
+        },
+        "Commercial": {
+            "BG RTF Total CPU Reserved": 4,
+            "BG RTF Total CPU Limit": 6,
+            "BG CH Total vCores": 0,
+            "Details": [
+                {
+                    "Business Group": "Commercial",
+                    "Environment": "Production",
+                    "RTF Total CPU Reserved": 4,
+                    "RTF Total CPU Limit": 6,
+                    "CH Total vCores": 0,
+                    "RTF Application Details": [
+                        {
+                            "applicationName": "integrator",
+                            "cpuReserved": 4,
+                            "cpuLimit": 6
+                        }
+                    ]
+                }
+            ]
+        },
+        "Research and Development": {
+            "BG RTF Total CPU Reserved": 0.2,
+            "BG RTF Total CPU Limit": 0.2,
+            "BG CH Total vCores": 0,
+            "Details": [
+                {
+                    "Business Group": "Research and Development",
+                    "Environment": "Production",
+                    "RTF Total CPU Reserved": 0.2,
+                    "RTF Total CPU Limit": 0.2,
+                    "CH Total vCores": 0,
+                    "RTF Application Details": [
+                        {
+                            "applicationName": "test-api-prod",
+                            "cpuReserved": 0.2,
+                            "cpuLimit": 0.2
+                        }
+                    ]
+                }
+            ]
+        },
+        "EPI-Integration and Analytics Platform": {
+            "BG RTF Total CPU Reserved": 0.2,
+            "BG RTF Total CPU Limit": 0.2,
+            "BG CH Total vCores": 0,
+            "Details": [
+                {
+                    "Business Group": "EPI-Integration and Analytics Platform",
+                    "Environment": "Production",
+                    "RTF Total CPU Reserved": 0.2,
+                    "RTF Total CPU Limit": 0.2,
+                    "CH Total vCores": 0,
+                    "RTF Application Details": [
+                        {
+                            "applicationName": "label-prod",
+                            "cpuReserved": 0.2,
+                            "cpuLimit": 0.2
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+}
