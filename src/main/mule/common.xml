@@ -3,65 +3,68 @@
 http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
 http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd
 http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd">
-    
-    <sub-flow name="list-details-for-deployment" doc:id="dbd99a5a-1ec2-48de-938e-51d88f133b1b" >
-		<try doc:name="Try" doc:id="ec9058a6-9f31-4159-95fe-412bd0c83e0c">
-						<http:request method="GET" doc:name="Get Details for Each Deployment" doc:id="1a30c497-8558-423a-8976-5b11ae3b860c" config-ref="HTTP_Request_configuration" path="/hybrid/api/v2/organizations/{orgId}/environments/{envId}/deployments/{deploymentId}">
-							<http:headers><![CDATA[#[output application/java
+	<sub-flow name="list-ch-deployed-apis" doc:id="09322abd-1dcb-46f0-b6d5-84746c9c6287" >
+		<choice doc:name="Choice" doc:id="65375b81-2e2f-4ffd-976f-72f02a887468">
+					<when expression="#[vars.inputData.data.includeCloudHub]">
+						<try doc:name="Try" doc:id="22115e87-d8a2-470e-8e8b-2198d3e299e4">
+							<http:request method="GET" doc:name="Get CH Apps" doc:id="bdb9e681-757d-4416-89fa-a528d3f1d799" config-ref="HTTP_Request_configuration" path="/cloudhub/api/v2/applications">
+					<http:headers><![CDATA[#[output application/java
 ---
 {
-	Authorization : vars.accessToken
+	"X-ANYPNT-ENV-ID" : vars.envInfo.id,
+	"Authorization" : vars.accessToken,
+	"X-ANYPNT-ORG-ID" : vars.bgId
 }]]]></http:headers>
-							<http:uri-params><![CDATA[#[output application/java
----
-{
-	deploymentId : vars.currApp.id,
-	envId : vars.envInfo.id,
-	orgId : vars.bgId
-}]]]></http:uri-params>
-						</http:request>
-						<error-handler>
-							<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="6bede1c0-22b4-45ef-a625-fe2462afe6de">
-								<ee:transform doc:name="Add to Error List" doc:id="8e04f413-53e8-42db-97f4-1ac66a2b2133">
-						<ee:message />
-						<ee:variables>
-							<ee:set-variable variableName="errorList"><![CDATA[%dw 2.0
+				</http:request>
+					<error-handler>
+								<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="b622858e-17cc-4977-8ede-3bb848cf9b3e">
+									<ee:transform doc:name="Add to Error List" doc:id="aa301feb-317f-4575-b154-25551506aa9b">
+										<ee:message>
+										</ee:message>
+										<ee:variables>
+											<ee:set-variable variableName="errorList"><![CDATA[%dw 2.0
 output application/java
 ---
 vars.errorList + {
 	bgId: vars.bgId,
 	error: error.description
 }]]></ee:set-variable>
-						</ee:variables>
-					</ee:transform>
-					<logger level="ERROR" doc:name="Log Could Not Retrieve Detail for Current Application" doc:id="8bebdf51-51fb-4ba1-8940-82610c404574" message='#["Could not retrieve details for application: " ++ vars.currApp.name]' />
-							</on-error-continue>
-						</error-handler>
-					</try>
-		<ee:transform doc:name="Calculating CPU Usage" doc:id="4eb4341c-e992-4bfa-bf49-78a348c9a93c">
-							<ee:message />
-							<ee:variables>
-				<ee:set-variable variableName="appDetail" ><![CDATA[%dw 2.0
+										</ee:variables>
+									</ee:transform>
+									<set-payload value="#[[]]" doc:name="Set Payload" doc:id="1e1ce99e-f723-45e7-b682-40a807a11af9" />
+								</on-error-continue>
+							</error-handler>
+						</try>
+					</when>
+					<otherwise>
+				<set-payload value="#[[]]" doc:name="Set Payload" doc:id="36703112-f94f-4b90-9d69-0098156eb5a8" />
+					</otherwise>
+				</choice>
+		<ee:transform doc:name="Filter Applications for CH" doc:id="dab4a039-ed0d-429d-940f-ceadd4a88f1a" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
 output application/java
+
+fun getCpu(item) = (item.workers.'type'.weight) * (item.workers.amount) as Number
+fun getMemory(item) = if (item.workers.'type'.memory contains "GB") trim(item.workers.'type'.memory replace "GB memory" with "") as Number * 1000 else trim(item.workers.'type'.memory replace "MB memory" with "") as Number 
 ---
-if (attributes.statusCode == 200) {
-	"applicationName": vars.currApp.name,
-    "cpuReserved": if (payload.application != null and payload.application.status != "NOT_RUNNING") ((((payload.target.deploymentSettings.resources.cpu.reserved default payload.target.deploymentSettings.cpuReserved) replace "m" with "") as Number) * (payload.target.replicas as Number))/1000 else 0,
-    "cpuLimit": if (payload.application != null and payload.application.status != "NOT_RUNNING") ((((payload.target.deploymentSettings.resources.cpu.limit default payload.target.deploymentSettings.cpuMax) replace "m" with "") as Number) * (payload.target.replicas as Number))/1000 else 0
-}
-else
-{
-	"applicationName": vars.currApp.name,
-    "cpuReserved": 0,
-    "cpuLimit": 0,
-    "error": "App details not found"
-}]]></ee:set-variable>
-							</ee:variables>
-						</ee:transform>
+payload filter ($.status == 'STARTED') map ((item, index) -> {
+    "applicationName": item.domain,
+    "applicationVersion": item.versionId,
+    "cpuReserved": getCpu(item),
+    "cpuLimit": getCpu(item),
+    "memoryReserved": getMemory(item),
+    "memoryLimit": getMemory(item),
+    "status": item.status,
+    "clustered" : false,
+    "runtimeVersion": item.muleVersion.version
+ })]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
 	</sub-flow>
-	<sub-flow name="list-deployed-apis" doc:id="a5b221e4-c647-49ad-a0d9-332e80efe8bb" >
+	<sub-flow name="list-rtf-deployed-apis" doc:id="a5b221e4-c647-49ad-a0d9-332e80efe8bb">
 		<logger level="INFO" doc:name="Log Start Extracting Cores for RTF Applications" doc:id="99f8a255-c450-4d4a-988e-81583b375dd6" message='#["Before extracting deployed applications for environment ID: " ++ vars.envInfo.id ++ " with name: " ++ vars.envInfo.envName]' />
-		<http:request method="GET" doc:name="List Deployed APIs" doc:id="380bdc52-5b08-4cad-916f-b3c1acd2bb3a" config-ref="HTTP_Request_configuration" path="/hybrid/api/v2/organizations/{orgId}/environments/{envId}/deployments">
+		<http:request method="GET" doc:name="List Deployed APIs" doc:id="380bdc52-5b08-4cad-916f-b3c1acd2bb3a" config-ref="HTTP_Request_configuration" path="/amc/application-manager/api/v2/organizations/{orgId}/environments/{envId}/deployments">
 					<http:headers><![CDATA[#[output application/java
 ---
 {
@@ -76,19 +79,92 @@ else
 				</http:request>
 		<ee:transform doc:name="Filter Applications for RTF" doc:id="d8ba26e1-ea06-4642-8f6f-098f949c1897">
 					<ee:message>
-					</ee:message>
-					<ee:variables>
-						<ee:set-variable variableName="filteredApps"><![CDATA[%dw 2.0
+				<ee:set-payload ><![CDATA[%dw 2.0
 output application/java
 ---
 payload.items filter ($.target.provider == "MC") map {
     id: $.id,
     name: $.name
-}]]></ee:set-variable>
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables>
 					</ee:variables>
 				</ee:transform>
 		<logger level="INFO" doc:name="Log End Extracting Cores for RTF Applications" doc:id="aaff4a92-78f4-4166-9a9d-f324319f99a5" message='#["Extracted deployed applications for environment ID: " ++ vars.envInfo.id ++ " with name: " ++ vars.envInfo.envName]' />
 	</sub-flow>
+	<sub-flow name="list-details-for-deployment" doc:id="dbd99a5a-1ec2-48de-938e-51d88f133b1b">
+		<try doc:name="Try" doc:id="ec9058a6-9f31-4159-95fe-412bd0c83e0c">
+						<until-successful maxRetries="5" doc:name="Until Successful" doc:id="84aa09ef-29bc-4a15-be2e-f12eeb97a3bc" millisBetweenRetries="1000">
+				<http:request method="GET" doc:name="Get RTF App Details" doc:id="1a30c497-8558-423a-8976-5b11ae3b860c" config-ref="HTTP_Request_configuration" path="/amc/application-manager/api/v2/organizations/{orgId}/environments/{envId}/deployments/{deploymentId}">
+							<http:headers><![CDATA[#[output application/java
+---
+{
+	Authorization : vars.accessToken
+}]]]></http:headers>
+							<http:uri-params><![CDATA[#[output application/java
+---
+{
+	deploymentId : vars.currApp.id,
+	envId : vars.envInfo.id,
+	orgId : vars.bgId
+}]]]></http:uri-params>
+						</http:request>
+			</until-successful>
+						<error-handler>
+							<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="18f157aa-8b6e-4c02-988e-6f9500bb6b8a" type="HTTP:SERVICE_UNAVAILABLE">
+								<logger level="INFO" doc:name="Logger" doc:id="75bfeda2-b7c7-4658-89d8-0a04e07cfb01" message='#["Get RTF Details service is unavailable, it will retry...."]'/>
+							</on-error-propagate>
+							<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="6bede1c0-22b4-45ef-a625-fe2462afe6de">
+								<ee:transform doc:name="Add to Error List" doc:id="8e04f413-53e8-42db-97f4-1ac66a2b2133">
+						<ee:message />
+						<ee:variables>
+							<ee:set-variable variableName="errorList"><![CDATA[%dw 2.0
+output application/java
+---
+vars.errorList default [] + {
+	bgId: vars.bgId,
+	error: error.description
+}]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+					<logger level="ERROR" doc:name="Log Could Not Retrieve Detail for Current Application" doc:id="8bebdf51-51fb-4ba1-8940-82610c404574" message='#["Could not retrieve details for application: " ++ vars.currApp.name]' />
+							</on-error-continue>
+						</error-handler>
+					</try>
+		<ee:transform doc:name="Set App Details" doc:id="4eb4341c-e992-4bfa-bf49-78a348c9a93c">
+							<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+if (attributes.statusCode == 200) {
+	"applicationName": payload.name,
+	"applicationVersion": payload.application.ref.version,
+    "cpuReserved": if (payload.target.deploymentSettings.resources != null and payload.application.status != "NOT_RUNNING") ((((payload.target.deploymentSettings.resources.cpu.reserved default payload.target.deploymentSettings.cpuReserved) replace "m" with "") as Number default 0) * (payload.target.replicas as Number))/1000 else payload.application.vCores default 0,
+    "cpuLimit": if (payload.target.deploymentSettings.resources != null and payload.application.status != "NOT_RUNNING") ((((payload.target.deploymentSettings.resources.cpu.limit default payload.target.deploymentSettings.cpuMax) replace "m" with "") as Number default 0) * (payload.target.replicas as Number))/1000 else payload.application.vCores default 0,
+    "memoryReserved": (payload.target.deploymentSettings.resources.memory.reserved replace "Mi" with "") as Number default 0,
+    "memoryLimit": (payload.target.deploymentSettings.resources.memory.limit replace "Mi" with "") as Number default 0,  
+    "status": payload.application.status,
+    "clustered": payload.target.deploymentSettings.clustered,
+    "runtimeVersion": payload.target.deploymentSettings.runtimeVersion
+}
+else
+{
+	"applicationName": vars.currApp.name,
+	"applicationVersion": "",
+    "cpuReserved": 0,
+    "cpuLimit": 0,
+    "memoryReserved": 0,
+    "memoryLimit": 0,  
+    "status": "App details not found",
+    "clustered": "",
+    "runtimeVersion": ""
+}]]></ee:set-payload>
+			</ee:message>
+							<ee:variables>
+							</ee:variables>
+						</ee:transform>
+	</sub-flow>
+	
 	<sub-flow name="save-variables" doc:id="091a406e-ea23-44d4-a1ce-eda2a7163f93" >
 		<ee:transform doc:name="Save Variables" doc:id="698e34c9-3163-42b2-8f35-96528ee4d80a">
 			<ee:message>
@@ -100,10 +176,7 @@ output application/java
 {
 	data: payload,
 	responseType: attributes.headers.responseType default "json",
-	authType: attributes.headers.authType,
-	filterEmptyOrg: (attributes.queryParams.'filterEmptyOrg' as Boolean) default false,
-	includeCloudHub: (attributes.queryParams.'includeCloudHub' as Boolean) default false,
-	consolidatedReport: (attributes.queryParams.'consolidatedReport' as Boolean) default false,
+	authType: attributes.headers.authType
 }]]></ee:set-variable>
 			</ee:variables>
 		</ee:transform>
@@ -135,58 +208,65 @@ output application/java
 		<validation:is-true doc:name="Is true" doc:id="31ca73d5-216e-4a4d-a696-710d77caf16a" expression="#[attributes.statusCode == 200]" message="Non 200 response received from Anypoint while trying to get environments for the business group" />
 		<ee:transform doc:name="Extract Environments By Type" doc:id="29a98c5d-0179-4fee-accd-8b79a9b69b66">
 				<ee:message>
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+
+var environments = 
+    if (vars.inputData.data.environments != 'all') 
+        payload.data filter $."type" == vars.inputData.data.environments 
+    else payload.data
+---
+environments map ((item, index) -> {
+    id: item.id,
+    envName: item.name
+})
+]]></ee:set-payload>
 				</ee:message>
 				<ee:variables>
-					<ee:set-variable variableName="extractedEnvs"><![CDATA[%dw 2.0
-output application/java
----
-payload.data filter ($."type" == vars.inputData.data.environments) map {
-    id: $.id,
-    envName: $.name
-}]]></ee:set-variable>
 				</ee:variables>
 			</ee:transform>
 		<logger level="INFO" doc:name="Log End Retrieve Environments for Business Group" doc:id="249c33b3-5c54-474f-83a3-a6642bb47938" message='#["Retrieved Environments for BG: " ++ vars.bgId]' />
 	</sub-flow>
-	<sub-flow name="get-business-group-info" doc:id="0f3171c3-8f45-471f-9dc5-5ea6be068a01" >
-		<logger level="INFO" doc:name="Log Before Getting Business Groups" doc:id="98be296f-86da-40b6-8f7a-14892465ed06" message="Start retrieveing Business Groups" />
-		<choice doc:name="Include Sub Orgs?" doc:id="112eee55-4eef-418a-9765-bf0e038c596e" >
+	<sub-flow name="get-business-group-info" doc:id="323d35e9-2ae1-4df5-874e-29005e0710f1" >
+		<logger level="INFO" doc:name="Log Before Getting Business Groups" doc:id="4eade118-1d03-4e9b-b81e-edbcc9e5a580" message="Start retrieveing Business Groups" />
+		<choice doc:name="Include Sub Orgs?" doc:id="5ab86573-e169-448f-be3a-9c945b87b71f" >
 			<when expression="#[vars.inputData.data.includeSubOrgs == true]">
-				<http:request method="GET" doc:name="Get List of Existing Sub Orgs for the Root Org" doc:id="50c28f41-49e1-4198-b5f1-eda734f2e288" config-ref="HTTP_Request_configuration" path="/accounts/api/organizations/{rootOrgID}/hierarchy" target="organizationsResponse">
-			<http:headers><![CDATA[#[output application/java
+				<http:request method="GET" doc:name="Get List of Existing Sub Orgs for the Root Org" doc:id="5b157c6c-15f3-4524-833a-db46e33d4610" config-ref="HTTP_Request_configuration" path="/accounts/api/organizations/{rootOrgID}/hierarchy" target="organizationsResponse">
+			<http:headers ><![CDATA[#[output application/java
 ---
 {
 	"Authorization" : vars.accessToken
 }]]]></http:headers>
-			<http:uri-params><![CDATA[#[output application/java
+					<http:uri-params><![CDATA[#[output application/java
 ---
 {
 	"rootOrgID" : vars.inputData.data.masterOrgId
 }]]]></http:uri-params>
 		</http:request>
-				<ee:transform doc:name="Retrieved Orgs" doc:id="38e634b3-b08a-4586-8b7f-df22e2dd0b98">
+				<ee:transform doc:name="Retrieved Orgs" doc:id="81e75dc0-1752-43b0-afb8-a334e6d06cb3">
 			<ee:message>
-			</ee:message>
-			<ee:variables>
-				<ee:set-variable variableName="retrievedOrgs"><![CDATA[%dw 2.0
+						<ee:set-payload ><![CDATA[%dw 2.0
 output application/java
 ---
 {
 	orgIds: (vars.organizationsResponse)..id
-}]]></ee:set-variable>
+}]]></ee:set-payload>
+			</ee:message>
+			<ee:variables>
 			</ee:variables>
 		</ee:transform>
 			</when>
 			<otherwise >
-				<ee:transform doc:name="Retrieved Orgs" doc:id="92ef4d76-2a29-44c1-93b1-5a5495a1e9ee" >
-					<ee:message />
-					<ee:variables >
-						<ee:set-variable variableName="retrievedOrgs" ><![CDATA[%dw 2.0
+				<ee:transform doc:name="Retrieved Orgs" doc:id="104fead9-25cd-44f1-8142-0ffaa79ea628" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
 output application/java
 ---
 {
 	orgIds: [vars.inputData.data.masterOrgId]
-}]]></ee:set-variable>
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
 					</ee:variables>
 				</ee:transform>
 			</otherwise>

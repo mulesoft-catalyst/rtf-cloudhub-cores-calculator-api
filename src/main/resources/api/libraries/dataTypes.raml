@@ -65,12 +65,27 @@ types:
         required: true
       includeSubOrgs:
         displayName: Include Sub Orgs
-        description: Do you also want to include the sub orgs in the RTF core count calculation
+        description: Includes sub orgs in the RTF core count calculation
+        type: boolean
+        required: true
+      filterEmptyOrg:
+        displayName: Filter Empty Org
+        description: Remove results from empty Orgs
+        type: boolean
+        required: true 
+      includeCloudHub:
+        displayName: Include CloudHub
+        description: Include CloudHub vCores in the results
         type: boolean
         required: true
       environments:
         displayName: Environment Type
-        description: Do you want to get core counts for Sandbox or Production Enviornments
+        description: Do you want to get core counts for Sandbox, Production or All Enviornments?
         type: string
-        enum: ["sandbox", "production"]
+        enum: ["sandbox", "production", "all"]
         required: true
+      consolidatedReport:
+        displayName: Consolidated Report
+        description: Export to a consolidated report in CSV format
+        type: boolean              
+        required: false

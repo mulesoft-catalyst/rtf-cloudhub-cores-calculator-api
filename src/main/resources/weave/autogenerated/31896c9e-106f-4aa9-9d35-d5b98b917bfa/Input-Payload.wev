@@ -1,0 +1,12 @@
+%dw 2.0
+
+type auto_31896c9e_106f_4aa9_9d35_d5b98b917bfa_Input_Payload = {
+  environments: "all" | "production" | "sandbox", 
+  masterOrgId: String, 
+  includeSubOrgs: Boolean, 
+  filterEmptyOrg: Boolean, 
+  includeCloudHub: Boolean, 
+  _?: Any
+} {"description": "Input Data for calculating RTF Cores count",
+"label": "RTF Calculator Object"}
+
