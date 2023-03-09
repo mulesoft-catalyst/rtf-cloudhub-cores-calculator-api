@@ -54,7 +54,7 @@ This API currently provides below functionalities -
 
 Checkout the Postman collection for a complete list of examples on how to use the API
 
-**cURL command for Detailed Cores Usage Report - **
+**cURL command for Detailed Cores Usage Report**
 
 ```
 curl -L -X POST 'https://{{APP-URI-BASE-PATH}}/api/cores/calculate' \
@@ -182,7 +182,7 @@ Sample response for Detailed Core Usage report -
 }
 ```
 
-**cURL command for Detailed Cores Usage Report exported to Excel - **
+**cURL command for Detailed Cores Usage Report exported to Excel**
 
 ```
 curl -L -X POST 'https://{{APP-URI-BASE-PATH}}/api/cores/calculate' \
@@ -198,8 +198,11 @@ curl -L -X POST 'https://{{APP-URI-BASE-PATH}}/api/cores/calculate' \
   "includeCloudHub": true
 }' -o <FileName>.xlsx
 ```
+Sample response for Detailed Core Usage Report exported to Excel - 
 
-**cURL command for Consolidated Cores Usage Report - **
+![image](https://user-images.githubusercontent.com/6174189/224009648-2b19287d-9325-42bc-af2c-ac51bc2ff811.png)
+
+**cURL command for Consolidated Cores Usage Report**
 
 ```
 curl -L -X POST 'https://{{APP-URI-BASE-PATH}}/api/cores/calculate' \
