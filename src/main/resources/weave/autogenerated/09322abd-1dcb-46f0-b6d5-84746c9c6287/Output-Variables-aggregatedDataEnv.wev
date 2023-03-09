@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_09322abd_1dcb_46f0_b6d5_84746c9c6287_Output_Variables_aggregatedDataEnv = Any
+

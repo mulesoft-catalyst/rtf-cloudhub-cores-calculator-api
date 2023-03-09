@@ -83,5 +83,14 @@ write({
 				<logger level="INFO" doc:name="Log After Get Token" doc:id="f3705e86-c440-41c1-8a25-c49e7be8935f" message="Token Extracted" />
 			</otherwise>
 		</choice>
+		<ee:transform doc:name="Save Access Token" doc:id="46637428-eabc-4c69-b749-ff2cd5863d5b">
+			<ee:message />
+			<ee:variables>
+				<ee:set-variable variableName="accessToken"><![CDATA[%dw 2.0
+output application/java
+---
+"Bearer " ++ vars.tokenValue.access_token]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
 	</sub-flow>
 </mule>

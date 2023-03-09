@@ -1,0 +1,350 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	
+	<sub-flow name="calculate-cores" doc:id="36aff883-4031-4776-8ddb-71cfa3f6eebf" >
+		<logger level="INFO" doc:name="Log Start" doc:id="4e40795b-5437-43d4-946e-8936736ef2ad" message="Request Received" />
+		<flow-ref doc:name="save-variables" doc:id="6ef88b31-45f2-444b-b848-36caa5e079cf" name="save-variables" />
+		<flow-ref doc:name="receive-and-authorize-sub-flow" doc:id="0cd6bcbf-3e69-4348-8445-0e1d219b1833" name="receive-and-authorize" />
+		<flow-ref doc:name="Call retrieve-applications-from-business-groups" doc:id="bbc60023-f748-41b6-a07c-ad48d11c7809" name="retrieve-applications-from-business-groups" />
+		<logger level="INFO" doc:name="Log End Processing Business Groups" doc:id="1d18e94b-7697-40df-a792-bbb17ee6779b" message='#["Processed Business Group: " ++ vars.bgId]' />
+		<ee:transform doc:name="Create JSON Response" doc:id="39e96c2b-7a24-4dfb-aec5-20669e521bd5">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Global Total RTF CPU Reserved": vars.globalCPUReserved,
+	"Global Total RTF CPU Limit": vars.globalCPULimit,
+	"Global Total CloudHub CPU": vars.globalCHCPUTotal,
+	"Details": vars.orgMap,
+	"Errors": vars.errorList
+}
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="a4d9a507-23f9-45bb-b9d8-8ca64d3a58fc">
+			<when expression="#[vars.inputData.data.filterEmptyOrg]">
+				<ee:transform doc:name="Filter CPU Reserved = 0" doc:id="d4f6ac98-4fa8-49a0-bc14-0da016d28b7f">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  "Global Total RTF CPU Reserved": payload."Global Total RTF CPU Reserved",
+  "Global Total RTF CPU Limit": payload."Global Total RTF CPU Limit",
+  "Global Total CloudHub CPU": payload."Global Total CloudHub CPU",
+  "Details": (payload.Details mapObject ((value, key, index) -> {
+    (key): value filter ($."RTF Total CPU Reserved" > 0 or sizeOf($."CH Application Details") > 0)
+  })),
+  	"Errors": vars.errorList
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="Remove empty Orgs" doc:id="89873910-0064-4ec7-b8ee-7ab2a951f850">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+fun treeFilter(value: Any, predicate: (value:Any) -> Boolean) =
+    value  match {
+            case object is Object ->  do {
+               object mapObject ((value, key, index) -> 
+                    (key): treeFilter(value, predicate)
+                )
+                filterObject ((value, key, index) -> predicate(value))
+            }
+            case array is Array -> do {
+                    array map ((item, index) -> treeFilter(item, predicate))
+                                         filter ((item, index) -> predicate(item))                 
+            }
+            else -> $
+    }
+
+---
+payload treeFilter ((value) -> 
+    value match {
+        case v is Array| Object | Null | "" -> !isEmpty(v)
+        else -> true
+    }
+)]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="Add BG Usage" doc:id="d067e7e0-5006-4e26-9688-3684797e833a">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json skipNullOn="everywhere"
+---
+{
+    "Global Total RTF CPU Reserved": payload."Global Total RTF CPU Reserved",
+    "Global Total RTF CPU Limit": payload."Global Total RTF CPU Limit",
+    "Global Total CloudHub vCores": payload."Global Total CloudHub CPU",
+    "Details": (payload.Details mapObject ((value, key, index) -> 
+    {
+        (key): {
+            "BG RTF Total CPU Reserved": sum(value."RTF Total CPU Reserved"),
+            "BG RTF Total CPU Limit": sum(value."RTF Total CPU Limit"),
+            "BG CH Total vCores": sum(value."CH Total vCores"),
+            "Details": value
+        }
+    })),
+    "Errors": payload.Errors
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<logger level="INFO" doc:name="Logger" doc:id="73bde218-3586-4991-bc51-c918451aa154" message="Filter Empty Org query Parameter  value is :: #[vars.inputData.data.filterEmptyOrg]" />
+			</otherwise>
+		</choice>
+		<choice doc:name="Choice" doc:id="86329dba-c418-4dde-a7d2-d8c067a3289a">
+			<when expression="#[vars.inputData.data.consolidatedReport]">
+				<ee:transform doc:name="Create Consolidated Report" doc:id="a045167d-f259-4283-813c-6bc10e688f3f">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/csv  
+---
+ flatten(payload.Details..Details) map ((item, index) -> 
+ {
+    "Tenant Type": "Env",
+    "Name": item.Environment,
+    "Business Group": item."Business Group",
+    "RTF CPU Reserved": item."RTF Total CPU Reserved",
+    "RTF CPU Limit": item."RTF Total CPU Limit",
+    "CloudHub vCores": item."CH Total vCores"
+ }) ++ flatten(
+  payload.Details pluck ((value, key, index) -> {
+    "Tenant Type": "BG",
+    "Name": (key),
+    "Business Group": "",
+    "RTF CPU Reserved": value."BG RTF Total CPU Reserved",
+    "RTF CPU Limit": value."BG RTF Total CPU Limit",
+    "CloudHub vCores": value."BG CH Total vCores"
+  })
+) +
+  {
+    "Tenant Type": "Global",
+    "Name": "<<yourOrgNameHere>>",
+    "Business Group": "",
+    "RTF CPU Reserved": payload."Global Total RTF CPU Reserved",
+    "RTF CPU Limit": payload."Global Total RTF CPU Limit",
+    "CloudHub vCores": payload."Global Total CloudHub vCores"
+  }]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<when expression="#[vars.inputData.responseType == 'excel']">
+				<ee:transform doc:name="Export to Excel" doc:id="23fc39c7-ca44-4194-a38d-f2926b803f48">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/xlsx
+fun mergeApps(bgItem) = (bgItem."RTF Application Details" default []) ++ (bgItem."CH Application Details" default [])
+---
+{
+	Global: [{
+		"RTF CPU Reserved": payload."Global Total RTF CPU Reserved",
+		"RTF CPU Limit": payload."Global Total RTF CPU Limit",
+		"CloudHub vCores": payload."Global Total CloudHub vCores"
+	}],
+	"Business Groups": flatten(
+  		payload.Details pluck ((value, key, index) -> {
+            "Name": value.Details[0]."Business Group",
+            "RTF CPU Reserved": value."BG RTF Total CPU Reserved",
+            "RTF CPU Limit": value."BG RTF Total CPU Limit",
+            "CloudHub vCores": value."BG CH Total vCores"
+	    })
+	) default [],
+	Environments: flatten(payload.Details..Details) map ((item, index) -> {
+		"Name": item.Environment,
+		"Business Group": item."Business Group",
+		"RTF CPU Reserved": item."RTF Total CPU Reserved",
+		"RTF CPU Limit": item."RTF Total CPU Limit",
+		"CloudHub vCores": item."CH Total vCores"
+	}) default [],
+    (flatten(payload.Details..Details) groupBy $."Business Group" pluck ((value, key, index) -> {
+        (key) : flatten (value map ((bgItem, index) -> mergeApps(bgItem) map ((item, index) -> {
+            (item ++ environment: bgItem.Environment)            
+        }) onNull {} ))
+    }))
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<logger level="INFO" doc:name="Logger" doc:id="85f69bf9-4e4f-4a32-9899-5edc149e247c" message="Consolidated Report value is :: #[vars.inputData.data.consolidatedReport]" />
+			</otherwise>
+		</choice>
+		<set-variable value="#[200]" doc:name="httpStatus" doc:id="682ae492-1899-4518-a589-e22e67136a42" variableName="httpStatus" />
+		<logger level="INFO" doc:name="Log End" doc:id="df4782a5-7857-4f43-9826-4705b89bf8ce" message="Request Completed" />
+	</sub-flow>
+	<sub-flow name="retrieve-applications-from-business-groups" doc:id="222844a2-1fdb-4b77-9ddf-f0a1e97c9906" >
+		<flow-ref doc:name="get-business-group-info" doc:id="45f287f2-09bf-43c4-969f-3fc800c01ed9" name="get-business-group-info" target="retrievedOrgs"/>
+		<logger level="INFO" doc:name="Log Start Processing Business Groups" doc:id="498315d7-f850-4c2f-b864-f609290de195" message='vars.retrievedOrgs :: #[write(vars.retrievedOrgs,"application/json") replace "\n" with "\n"]' />
+		<foreach doc:name="For Each Business Group" doc:id="60ede15f-cfd0-48ed-8b0e-1185c7a75405" collection="#[vars.retrievedOrgs.orgIds]">
+			<flow-ref doc:name="Call retrieve-environments" doc:id="a35e0e8a-a9fa-4bf7-8891-b42a6d333886" name="retrieve-environments" />
+			<foreach doc:name="For Each Environment" doc:id="13b3a2ef-4635-40e2-abe0-1401ead7947e" collection="#[vars.extractedEnvs]">
+				<flow-ref doc:name="Call extract-applications" doc:id="17d191ba-4582-4e61-a644-75d235d51b82" name="extract-applications" />
+			</foreach>
+			<try doc:name="Try" doc:id="e96a35e9-0ced-4b04-817b-b5ea67b74107">
+				<http:request method="GET" doc:name="Get List of Existing Sub Orgs for the Root Org" doc:id="c5951271-64df-4fce-ad07-bd7e745b4ba8" config-ref="HTTP_Request_configuration" path="/accounts/api/organizations/{rootOrgID}/hierarchy" target="bgName" targetValue="#[write(payload.name, 'application/java')]">
+				<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization" : vars.accessToken
+}]]]></http:headers>
+				<http:uri-params><![CDATA[#[output application/java
+---
+{
+	"rootOrgID" : vars.bgId
+}]]]></http:uri-params>
+			</http:request>
+				<error-handler>
+					<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="da84beca-e643-49dd-abc8-dd850437c222">
+						<ee:transform doc:name="Add to Error List" doc:id="e93e61e3-cb6a-4ecf-9dd3-3f169ef9feb7">
+							<ee:message />
+							<ee:variables>
+								<ee:set-variable variableName="errorList"><![CDATA[%dw 2.0
+output application/java
+---
+vars.errorList + {
+	bgId: vars.bgId,
+	error: error.description
+}]]></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<set-variable value='#[""]' doc:name="bgName" doc:id="186f2816-ae17-4cac-9398-6d5ea6223efc" variableName="bgName" />
+					</on-error-continue>
+				</error-handler>
+			</try>
+			<choice doc:name="Check Response Type" doc:id="78a40e8d-69de-4411-afcb-0391f7031d52">
+				<when expression='#[vars.inputData.responseType == "json" or vars.inputData.responseType == "excel"]'>
+					<ee:transform doc:name="Add BG Details to EnvList" doc:id="2b5a62ab-8bd1-471b-b9ad-b39165b9f41e">
+						<ee:message>
+						</ee:message>
+						<ee:variables>
+							<ee:set-variable variableName="envList"><![CDATA[%dw 2.0
+output application/java  
+---
+
+vars.envList map ((item, index) -> ({"Business Group": vars.bgName} ++ item ))]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+					<scripting:execute doc:name="Add to Organization Map" doc:id="e0e40f6d-681d-4500-8ffd-814b1994858c" engine="groovy">
+				<scripting:code>vars.orgMap.put(vars.bgName, vars.envList)</scripting:code>
+			</scripting:execute>
+				</when>
+				<otherwise>
+					<ee:transform doc:name="Aggregated Data" doc:id="81f47a32-ee10-42c3-858e-563240c1f227">
+						<ee:message>
+						</ee:message>
+						<ee:variables>
+							<ee:set-variable variableName="aggregatedOrgData"><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"Organization": vars.bgName,
+	"Environments": vars.envList
+}]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+					<scripting:execute doc:name="Add to Organization List" doc:id="c5883801-1816-4eb4-bdd4-f83d32a1f7e5" engine="groovy">
+						<scripting:code>vars.orgList.add(vars.aggregatedOrgData)</scripting:code>
+					</scripting:execute>
+				</otherwise>
+			</choice>			
+			<set-variable value="#[[]]" doc:name="Clear Environment List" doc:id="156791d4-e86b-425d-9004-42abd09f0908" variableName="envList" />
+		</foreach>
+	</sub-flow>
+	<sub-flow name="retrieve-environments" doc:id="cb5cc99c-8051-401f-867e-7e3cb4d7900b" >
+		<set-variable value="#[payload]" doc:name="Save Business Group ID" doc:id="7b3c8cdc-92d5-4388-910d-646ff96f5fd3" variableName="bgId" />
+		<logger level="INFO" doc:name="Log Start Processing Business Group" doc:id="f8152113-97d4-4b34-8f9e-f1217a647247" message='#["Processing Business Group: " ++ vars.bgId]' />
+		<try doc:name="Try" doc:id="70658fc3-64c3-4ae8-a02d-99b93ba48767">
+				<flow-ref doc:name="extract-environments-for-bg" doc:id="dedc46af-8138-464e-9739-08ce06a5762c" name="extract-environments-for-bg" target="extractedEnvs"/>
+				<error-handler>
+					<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="9af3bdcd-4fa2-4853-ba0c-c0a1c4ea8b61">
+						<ee:transform doc:name="Add to Error List" doc:id="8a5b15f0-820f-420a-a801-08114ad1aa82">
+							<ee:message>
+							</ee:message>
+							<ee:variables>
+								<ee:set-variable variableName="errorList"><![CDATA[%dw 2.0
+output application/java
+---
+vars.errorList + {
+	bgId: vars.bgId,
+	error: error.description
+}]]></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<set-variable value="#[[]]" doc:name="extractedEnvs" doc:id="59a4f310-8bf4-4e71-94cc-e862be3f32a1" variableName="extractedEnvs" />
+					</on-error-continue>
+				</error-handler>
+			</try>
+	</sub-flow>
+	<sub-flow name="extract-applications" doc:id="dffebec4-9228-4d3f-b6a7-493962d865cf">
+		<set-variable value="#[payload]" doc:name="Set Environment Info" doc:id="a82bfbad-3376-4872-85fc-5fddee16dca1" variableName="envInfo" />
+		<flow-ref doc:name="Call extract-rtf-application-details" doc:id="b9c70a43-458e-409e-9c24-c8cc1251f9a9" name="extract-rtf-application-details" />
+		<flow-ref doc:name="Call list-ch-deployed-apis" doc:id="096f52bb-659a-4086-a486-f370d87ab029" name="list-ch-deployed-apis" target="filteredCHApps"/>
+		<ee:transform doc:name="Aggregated Data" doc:id="156f9799-681f-4e90-814a-28a620e6319c">
+					<ee:message>
+					</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="aggregatedDataEnv"><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"Environment": vars.envInfo.envName,
+	"RTF Total CPU Reserved": if ( sizeOf(vars.filteredApps) > 0 ) vars.totalCPUReserved else 0,
+	"RTF Total CPU Limit": if ( sizeOf(vars.filteredApps) > 0 ) vars.totalCPULimit else 0,
+	"CH Total vCores": if( sizeOf(vars.filteredCHApps) > 0 ) sum(vars.filteredCHApps.'cpuReserved' default []) else 0,
+	"RTF Application Details": if ( sizeOf(vars.filteredApps) > 0 ) vars.appDetailList.payload else [],
+	"CH Application Details": vars.filteredCHApps
+}
+]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+		<set-variable value='#[vars.globalCHCPUTotal + vars.aggregatedDataEnv."CH Total vCores"]' doc:name="globalCHCPUTotal" doc:id="9ff1c820-b463-4e2f-9e7a-0e67936f2014" variableName="globalCHCPUTotal" />
+		<scripting:execute doc:name="Add to Environment List" doc:id="539f86ee-a0e9-4931-bb0c-b8a54fce486b" engine="groovy">
+					<scripting:code>vars.envList.add(vars.aggregatedDataEnv)</scripting:code>
+				</scripting:execute>
+		<set-variable value="#[[]]" doc:name="clear aggregatedDataEnv" doc:id="97623d30-0190-47b1-8028-ee95192706a7" variableName="aggregatedDataEnv" />
+	</sub-flow>
+	<sub-flow name="extract-rtf-application-details" doc:id="82383163-f89b-4b06-928d-a37e229d6efc">
+		<set-variable value="#[0]" doc:name="Init Total CPU Reserved" doc:id="678860d6-fa86-421f-a3ac-2f9adba46491" variableName="totalCPUReserved" mimeType="application/java" />
+		<set-variable value="#[0]" doc:name="Init Total CPU Limit" doc:id="1d8e48e1-41fb-4ad3-af08-446bc0e97b01" variableName="totalCPULimit" mimeType="application/java" />
+		<try doc:name="Try" doc:id="35aea222-ed18-4907-8596-fd93570a023e">
+					<flow-ref doc:name="list-rtf-deployed-apis" doc:id="00ed7453-a1cc-46aa-a1ae-add8232b10d2" name="list-rtf-deployed-apis" target="filteredApps"/>
+					<error-handler>
+						<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="dfbbd9d5-1603-44cc-a77d-820ae571f430">
+							<ee:transform doc:name="Add to Error List" doc:id="003ed61f-cdd4-4c0a-8904-efd9f85df699">
+								<ee:message />
+								<ee:variables>
+									<ee:set-variable variableName="errorList"><![CDATA[%dw 2.0
+output application/java
+---
+vars.errorList default [] + {
+	bgId: vars.bgId,
+	error: error.description
+}]]></ee:set-variable>
+								</ee:variables>
+							</ee:transform>
+							<set-variable value="#[[]]" doc:name="filteredApps" doc:id="a47ab871-e125-4830-bf46-50595a016d17" variableName="filteredApps" />
+						</on-error-continue>
+					</error-handler>
+				</try>
+		<parallel-foreach doc:name="Parallel For Each" doc:id="c581ba00-c830-4e94-ad73-c39bc011c40d" collection="#[vars.filteredApps]" target="appDetailList">
+			<set-variable value="#[payload]" doc:name="Current App" doc:id="b371b992-fa61-4987-812c-92e774686bd5" variableName="currApp" />
+			<flow-ref doc:name="list-details-for-deployment" doc:id="ed5f8d94-0475-4158-bc2f-6516c36f8a7e" name="list-details-for-deployment"/>
+		</parallel-foreach>
+		<set-variable value="#[(vars.totalCPUReserved as Number) + (sum((vars.appDetailList.payload.cpuReserved default [])) as Number)]" doc:name="Count Total CPU Reserved" doc:id="143213f8-9028-44b9-a748-0fa9eff5c2ce" variableName="totalCPUReserved" />
+		<set-variable value="#[(vars.totalCPULimit as Number) + (sum(vars.appDetailList.payload.cpuLimit default []) as Number)]" doc:name="Count Total CPU Limit" doc:id="b0ae956f-a12f-49b5-a6b3-afa654e69464" variableName="totalCPULimit" />
+		<set-variable value="#[(sum(vars.appDetailList.payload.cpuReserved default []) as Number) + (vars.globalCPUReserved as Number)]" doc:name="Global Increment CPU Reserved" doc:id="030357b4-e11c-4694-b01b-6a150b14796c" variableName="globalCPUReserved" />
+		<set-variable value="#[(sum(vars.appDetailList.payload.cpuLimit default []) as Number) + (vars.globalCPULimit as Number)]" doc:name="Global Increment CPU Limit" doc:id="ddbc7fde-4f8e-4f16-9ecd-1d23bc78f746" variableName="globalCPULimit" />
+	</sub-flow>
+</mule>

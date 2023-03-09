@@ -1,0 +1,159 @@
+{
+	"info": {
+		"_postman_id": "a30a1bfe-1554-48c3-a639-3247b2b6fab6",
+		"name": "rtf-ch-core-calculator-api",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "15967179"
+	},
+	"item": [
+		{
+			"name": "Detailed Cores Usage Report - JSON",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "{{connectedAppClientSecret}}",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "{{connectedAppClientId}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "authType",
+						"value": "connectedApp",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"masterOrgId\": \"{{master-org-id}}\",\n  \"includeSubOrgs\": true,\n  \"environments\": \"all\",\n  \"filterEmptyOrg\": true,\n  \"includeCloudHub\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}api/cores/calculate",
+					"host": [
+						"{{url}}api"
+					],
+					"path": [
+						"cores",
+						"calculate"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Detailed Cores Usage Report - Excel",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "{{connectedAppClientSecret}}",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "{{connectedAppClientId}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "authType",
+						"value": "connectedApp",
+						"type": "text"
+					},
+					{
+						"key": "responseType",
+						"value": "excel",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"masterOrgId\": \"{{master-org-id}}\",\n  \"includeSubOrgs\": true,\n  \"environments\": \"all\",\n  \"filterEmptyOrg\": true,\n  \"includeCloudHub\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}api/cores/calculate",
+					"host": [
+						"{{url}}api"
+					],
+					"path": [
+						"cores",
+						"calculate"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Consolitate Cores Usage Report",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "{{connectedAppClientSecret}}",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "{{connectedAppClientId}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "authType",
+						"value": "connectedApp",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"masterOrgId\": \"{{master-org-id}}\",\n  \"includeSubOrgs\": true,\n  \"environments\": \"all\",\n  \"filterEmptyOrg\": true,\n  \"includeCloudHub\": true,\n  \"consolidatedReport\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}api/cores/calculate",
+					"host": [
+						"{{url}}api"
+					],
+					"path": [
+						"cores",
+						"calculate"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

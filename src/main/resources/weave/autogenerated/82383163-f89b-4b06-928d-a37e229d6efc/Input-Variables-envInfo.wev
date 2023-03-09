@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_82383163_f89b_4b06_928d_a37e229d6efc_Input_Variables_envInfo = Any
+

@@ -1,0 +1,27 @@
+%dw 2.0
+
+type auto_31896c9e_106f_4aa9_9d35_d5b98b917bfa_Input_Attributes = {|
+  clientCertificate?: {|
+    publicKey?: {|  |}, 
+    "type"?: String, 
+    encoded?: Binary
+  |}, 
+  headers: {|
+    TransRefGUID?: String, 
+    responseType?: "excel" | "csv" | "json", 
+    authType: "userpass" | "connectedApp"
+  |}, 
+  listenerPath: String, 
+  method: String, 
+  queryParams: {|  |}, 
+  queryString: String, 
+  relativePath: String, 
+  remoteAddress: String, 
+  requestPath: String, 
+  requestUri: String, 
+  scheme: String, 
+  uriParams: {|  |}, 
+  version: String, 
+  localAddress: String
+|}
+
